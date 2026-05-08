@@ -1,0 +1,51 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Check if the user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Check if the user is a developer/admin
+    function isAdmin() {
+      return isAuthenticated() && (
+        (request.auth.token.email.toLower() == "conieoliveira@gmail.com") || 
+        (request.auth.token.email.toLower() == "vitor3729@hotmail.com") ||
+        (request.auth.token.email.toLower() == "admin@restaurantedasol.com") ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin")
+      );
+    }
+
+    // Check if user owns the document
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (isOwner(userId) || isAdmin());
+      allow write: if isAuthenticated() && (isOwner(userId) || isAdmin());
+    }
+
+    match /menus/{menuId} {
+      // Menus are publicly readable for displaying items to customers
+      allow read: if true;
+      // Only admins/developers can modify the menu
+      allow write: if isAdmin();
+    }
+
+    match /orders/{orderId} {
+      // Reading orders requires being logged in
+      allow read: if isAuthenticated();
+      // Anyone can create an order to simplify the flow for sectors
+      allow create: if true;
+      // Only the owner or developers can update/delete orders
+      allow update, delete: if isAuthenticated() && (resource.data.userUid == request.auth.uid || isAdmin());
+    }
+
+    match /test/connection {
+      allow read: if true;
+    }
+  }
+}

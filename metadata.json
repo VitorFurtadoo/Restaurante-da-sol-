@@ -1,0 +1,6 @@
+{
+  "name": "Restaurante da Sol",
+  "description": "Sistema de pedidos de marmitex do Restaurante da Sol, com gestão de cardápio diário e organização por setores.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}

@@ -1,0 +1,68 @@
+{
+  "entities": {
+    "MenuItem": {
+      "title": "Menu Item",
+      "description": "Uma opção de alimento no cardápio diário.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string", "enum": ["protein", "side", "salad", "dessert", "drink"] },
+        "description": { "type": "string" },
+        "imageUrl": { "type": "string" }
+      },
+      "required": ["name", "category"]
+    },
+    "DailyMenu": {
+      "title": "Daily Menu",
+      "description": "O cardápio completo para um dia e período específico.",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string", "format": "date" },
+        "period": { "type": "string", "enum": ["lunch", "dinner"] },
+        "items": { "type": "array", "items": { "$ref": "MenuItem" } }
+      },
+      "required": ["date", "period", "items"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Um pedido de marmitex feito por um setor.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "sector": { "type": "string" },
+        "items": { "type": "array", "items": { "type": "string" } },
+        "period": { "type": "string", "enum": ["lunch", "dinner"] },
+        "date": { "type": "string", "format": "date" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "observation": { "type": "string" }
+      },
+      "required": ["sector", "items", "period", "date", "timestamp"]
+    },
+    "User": {
+      "title": "User",
+      "description": "Informações de perfil do usuário.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "user"] }
+      },
+      "required": ["uid", "email", "role"]
+    }
+  },
+  "firestore": {
+    "/menus/{menuId}": {
+      "schema": "DailyMenu",
+      "description": "Cardápios diários armazenados por ID único (Geralmente data_periodo)."
+    },
+    "/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Pedidos realizados pelos setores."
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Perfis de usuários e suas permissões."
+    }
+  }
+}

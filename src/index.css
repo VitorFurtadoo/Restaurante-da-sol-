@@ -1,0 +1,27 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Helvetica Neue", Helvetica, Arial, sans-serif, ui-sans-serif, system-ui;
+  --font-serif: "Georgia", serif;
+  
+  --color-natural-bg: #FDFCF8;
+  --color-natural-card: #FFFFFF;
+  --color-natural-accent: #5A5A40;
+  --color-natural-accent-light: #8B8B6B;
+  --color-natural-text: #2C2C2C;
+  --color-natural-text-muted: #666666;
+  --color-natural-border: #E5E2D9;
+  
+  --shadow-natural: 0 4px 20px rgba(90, 90, 64, 0.08);
+}
+
+@layer utilities {
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
