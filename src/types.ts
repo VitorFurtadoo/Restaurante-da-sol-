@@ -1,4 +1,4 @@
-export type Category = 'protein' | 'accompaniment' | 'potato' | 'garnish' | 'extra';
+export type Category = 'protein' | 'accompaniment' | 'potato' | 'garnish' | 'extra' | 'pastel' | 'beverage';
 export type Period = 'lunch' | 'dinner';
 
 export interface MenuItem {
@@ -15,6 +15,7 @@ export interface DailyMenu {
   period: Period;
   items: MenuItem[];
   status: 'open' | 'closed';
+  isComboEnabled?: boolean;
 }
 
 export interface Order {

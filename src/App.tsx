@@ -41,7 +41,8 @@ import {
   ChefHat, 
   ShoppingCart, 
   ListOrdered, 
-  ChevronRight, 
+  ChevronRight,
+  ChevronLeft,
   Plus, 
   Trash2, 
   Download,
@@ -622,6 +623,10 @@ export default function App() {
   const [orderStatus, setOrderStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
   const [allOrders, setAllOrders] = useState<Order[]>([]);
   const [orderObservation, setOrderObservation] = useState('');
+  const [orderMode, setOrderMode] = useState<'marmitex' | 'combo_pastel' | null>(null);
+  const [comboPastel1, setComboPastel1] = useState<string>('');
+  const [comboPastel2, setComboPastel2] = useState<string>('');
+  const [comboBeverage, setComboBeverage] = useState<string>('');
   const [userName, setUserName] = useState('');
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [notification, setNotification] = useState<string | null>(null);
@@ -747,6 +752,14 @@ export default function App() {
     });
   }, [selectedPeriod]);
 
+  useEffect(() => {
+    if (userSubView === 'order' && currentMenu) {
+      if (!currentMenu.isComboEnabled) {
+        setOrderMode('marmitex');
+      }
+    }
+  }, [userSubView, currentMenu?.isComboEnabled]);
+
   // Admin: Fetch All Orders
   useEffect(() => {
     if (profile?.role === 'admin') {
@@ -803,30 +816,86 @@ export default function App() {
   const handleToggleItem = (itemName: string) => {
     setSelectedItems(prev => {
       const isSelected = prev.includes(itemName);
+      const item = currentMenu?.items.find(i => i.name === itemName);
+      if (!item) return prev;
+
       if (isSelected) {
         return prev.filter(i => i !== itemName);
       } else {
-        const item = currentMenu?.items.find(i => i.name === itemName);
+        // Enforce "Marmitex vs Pastel" exclusivity
+        const isPastelOrBeverage = item.category === 'pastel' || item.category === 'beverage';
+        
+        if (isPastelOrBeverage) {
+          // If selecting pastel/beverage, clear marmitex items
+          const hasMarmitexItems = prev.some(name => {
+            const cat = currentMenu?.items.find(i => i.name === name)?.category;
+            return cat && ['protein', 'accompaniment', 'potato', 'garnish'].includes(cat);
+          });
+          
+          if (hasMarmitexItems) {
+            // Keep only existing pastels/beverages if we want to allow switching, 
+            // but the prompt implies a mode switch.
+            const onlyPastelsAndBeverages = prev.filter(name => {
+              const cat = currentMenu?.items.find(i => i.name === name)?.category;
+              return cat === 'pastel' || cat === 'beverage';
+            });
+            prev = onlyPastelsAndBeverages;
+          }
 
-        // Enforce "Only one" rule for protein, garnish and potato
-        if (item?.category === 'protein' || item?.category === 'garnish' || item?.category === 'potato') {
-          const categoryNames = currentMenu?.items
-            .filter(i => i.category === item.category)
-            .map(i => i.name) || [];
-          const withoutCategoryItems = prev.filter(i => !categoryNames.includes(i));
-          return [...withoutCategoryItems, itemName];
-        }
+          if (item.category === 'pastel') {
+            const currentPastels = prev.filter(name => 
+              currentMenu?.items.find(i => i.name === name)?.category === 'pastel'
+            );
+            if (currentPastels.length >= 2) {
+              setNotification("Limite de 2 pastéis atingido.");
+              return prev;
+            }
+          }
 
-        // Enforce "Max 3" rule for accompaniment
-        if (item?.category === 'accompaniment') {
-          const currentAccompaniments = prev.filter(selected => 
-            currentMenu?.items.find(i => i.name === selected)?.category === 'accompaniment'
+          if (item.category === 'beverage') {
+            const currentBeverages = prev.filter(name => 
+              currentMenu?.items.find(i => i.name === name)?.category === 'beverage'
+            );
+            if (currentBeverages.length >= 1) {
+              // Replace beverage
+              const withoutBeverages = prev.filter(name => 
+                currentMenu?.items.find(i => i.name === name)?.category !== 'beverage'
+              );
+              return [...withoutBeverages, itemName];
+            }
+          }
+        } else {
+          // Selecting a Marmitex item, clear pastels
+          const hasPastelItems = prev.some(name => 
+            currentMenu?.items.find(i => i.name === name)?.category === 'pastel'
           );
-          if (currentAccompaniments.length >= 3) {
-            // Se já tem 3, remove o mais antigo e adiciona o novo (ou apenas bloqueia, vamos remover o primeiro)
-            const firstAcc = currentAccompaniments[0];
-            const withoutFirst = prev.filter(i => i !== firstAcc);
-            return [...withoutFirst, itemName];
+          
+          if (hasPastelItems) {
+            const onlyMarmitexAndBeverages = prev.filter(name => 
+              currentMenu?.items.find(i => i.name === name)?.category !== 'pastel'
+            );
+            prev = onlyMarmitexAndBeverages;
+          }
+
+          // Enforce "Only one" rule for protein, garnish and potato
+          if (item.category === 'protein' || item.category === 'garnish' || item.category === 'potato') {
+            const categoryNames = currentMenu?.items
+              .filter(i => i.category === item.category)
+              .map(i => i.name) || [];
+            const withoutCategoryItems = prev.filter(i => !categoryNames.includes(i));
+            return [...withoutCategoryItems, itemName];
+          }
+
+          // Enforce "Max 3" rule for accompaniment
+          if (item.category === 'accompaniment') {
+            const currentAccompaniments = prev.filter(selected => 
+              currentMenu?.items.find(i => i.name === selected)?.category === 'accompaniment'
+            );
+            if (currentAccompaniments.length >= 3) {
+              const firstAcc = currentAccompaniments[0];
+              const withoutFirst = prev.filter(i => i !== firstAcc);
+              return [...withoutFirst, itemName];
+            }
           }
         }
 
@@ -837,7 +906,18 @@ export default function App() {
 
   const handleSubmitOrder = async () => {
     const trimmedName = userName.trim();
-    if (!trimmedName || !selectedSector || selectedItems.length === 0 || currentMenu?.status === 'closed') return;
+    
+    let finalItems = selectedItems;
+    if (orderMode === 'combo_pastel') {
+      finalItems = [comboPastel1, comboPastel2, comboBeverage].filter(Boolean);
+    }
+
+    if (!trimmedName || !selectedSector || finalItems.length === 0 || currentMenu?.status === 'closed') return;
+
+    if (orderMode === 'combo_pastel' && (!comboPastel1 || !comboPastel2 || !comboBeverage)) {
+        setNotification("Por favor, selecione os 2 pastéis e a bebida do combo.");
+        return;
+    }
 
     // Validate name and surname
     const nameParts = trimmedName.split(/\s+/).filter(p => p.length > 0);
@@ -866,7 +946,7 @@ export default function App() {
         userUid: user?.uid || null,
         userName: trimmedName,
         sector: selectedSector,
-        items: selectedItems,
+        items: finalItems,
         period: selectedPeriod,
         observation: orderObservation,
         date: today,
@@ -876,8 +956,12 @@ export default function App() {
       setOrderStatus('success');
       setNotification(`Pedido de ${trimmedName} enviado com sucesso! Bom apetite!`);
       setSelectedItems([]);
+      setComboPastel1('');
+      setComboPastel2('');
+      setComboBeverage('');
       setOrderObservation('');
       setUserName('');
+      setOrderMode(null);
       setTimeout(() => setOrderStatus('idle'), 3000);
     } catch (e) {
       handleFirestoreError(e, OperationType.CREATE, path);
@@ -945,6 +1029,8 @@ export default function App() {
         case 'potato': return '[B]';
         case 'garnish': return '[G]';
         case 'extra': return '[#]';
+        case 'pastel': return '[P]';
+        case 'beverage': return '[D]';
         default: return '';
       }
     };
@@ -975,8 +1061,9 @@ export default function App() {
     PDFGroups.forEach((entry) => {
       const signature = entry[0];
       const group = entry[1] as { count: number, items: string[], orders: Order[] };
-      // Check for page break
-      if (currentY > 230) {
+      // Check for page break - Increase threshold and check for table height if possible
+      // but simpler: if we have less than 40 units left, might as well start fresh
+      if (currentY > 210) {
         doc.addPage();
         currentY = 20;
       }
@@ -1070,7 +1157,9 @@ export default function App() {
       { id: 'accompaniment', label: 'Acompanhamentos' },
       { id: 'potato', label: 'Batatas' },
       { id: 'garnish', label: 'Guarnições' },
-      { id: 'extra', label: 'Opcionais' }
+      { id: 'extra', label: 'Opcionais' },
+      { id: 'pastel', label: 'Pastéis' },
+      { id: 'beverage', label: 'Bebidas' }
     ];
 
     categoriesToPrint.forEach(cat => {
@@ -1310,11 +1399,156 @@ export default function App() {
                 </header>
 
                 {userSubView === 'order' ? (
-                  currentMenu ? (
+                  !orderMode ? (
+                    <div className="max-w-2xl mx-auto py-12 px-4">
+                      <div className="text-center mb-12">
+                        <h2 className="font-serif text-4xl text-natural-accent italic mb-4">O que você deseja hoje?</h2>
+                        <p className="text-natural-text-muted font-medium uppercase tracking-widest text-[11px]">Escolha uma das opções abaixo para montar seu pedido</p>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                        <button 
+                          id="marmitex-mode-btn"
+                          onClick={() => {
+                            setOrderMode('marmitex');
+                            setSelectedItems([]);
+                          }}
+                          className="group relative bg-natural-card p-10 rounded-[40px] border-2 border-natural-border/50 hover:border-natural-accent transition-all duration-500 shadow-natural hover:shadow-natural-hover overflow-hidden"
+                        >
+                          <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity">
+                            <Utensils className="w-24 h-24 text-natural-accent" />
+                          </div>
+                          <div className="relative z-10 flex flex-col items-center text-center">
+                            <div className="w-20 h-20 bg-natural-bg rounded-3xl flex items-center justify-center mb-6 border border-natural-border group-hover:scale-110 transition-transform duration-500">
+                              <Utensils className="w-10 h-10 text-natural-accent" />
+                            </div>
+                            <h3 className="font-serif text-2xl text-natural-accent italic mb-2">Marmitex</h3>
+                            <p className="text-sm text-natural-text-muted">Monte sua marmita com proteínas, guarnições e acompanhamentos.</p>
+                          </div>
+                        </button>
+
+                        <button 
+                          id="combo-pastel-mode-btn"
+                          onClick={() => {
+                            setOrderMode('combo_pastel');
+                            setSelectedItems([]);
+                          }}
+                          className="group relative bg-natural-card p-10 rounded-[40px] border-2 border-natural-border/50 hover:border-natural-accent transition-all duration-500 shadow-natural hover:shadow-natural-hover overflow-hidden"
+                        >
+                          <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity">
+                            <ChefHat className="w-24 h-24 text-natural-accent" />
+                          </div>
+                          <div className="relative z-10 flex flex-col items-center text-center">
+                            <div className="w-20 h-20 bg-natural-bg rounded-3xl flex items-center justify-center mb-6 border border-natural-border group-hover:scale-110 transition-transform duration-500">
+                              <ChefHat className="w-10 h-10 text-natural-accent" />
+                            </div>
+                            <h3 className="font-serif text-2xl text-natural-accent italic mb-2">Combo Pastel</h3>
+                            <p className="text-sm text-natural-text-muted">Aproveite nosso combo com 2 pastéis + 1 bebida (suco ou refrigerante).</p>
+                          </div>
+                        </button>
+                      </div>
+                    </div>
+                  ) : currentMenu ? (
                     <div className="space-y-10">
-                      {(['protein', 'accompaniment', 'potato', 'garnish', 'extra'] as const).map(cat => {
+                      <div className="flex items-center justify-between">
+                        {currentMenu.isComboEnabled ? (
+                          <button 
+                            onClick={() => setOrderMode(null)}
+                            className="flex items-center gap-2 text-natural-text-muted hover:text-natural-accent transition-colors text-xs font-bold uppercase tracking-tight group"
+                          >
+                            <ChevronLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+                            Voltar para Seleção
+                          </button>
+                        ) : (
+                          <div />
+                        )}
+                        <div className="bg-natural-accent/5 px-4 py-2 rounded-full border border-natural-accent/10">
+                          <span className="text-[10px] font-bold text-natural-accent uppercase tracking-widest">
+                            {orderMode === 'marmitex' ? 'Modo: Marmitex' : 'Modo: Combo Pastel'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {orderMode === 'combo_pastel' && (
+                        <div className="space-y-8">
+                          {/* Pastel 1 */}
+                          <div className="bg-natural-card rounded-[24px] p-8 shadow-natural border border-natural-border/50">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-4 mb-8 border-b border-natural-border/30 pb-4">
+                              <h3 className="font-serif text-2xl text-natural-accent italic">1º Pastel</h3>
+                              <span className="text-[11px] font-bold text-natural-text-muted uppercase tracking-widest">Escolha o primeiro sabor</span>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                              {currentMenu.items.filter(i => i.category === 'pastel').map(item => (
+                                <button
+                                  key={`p1-${item.name}`}
+                                  onClick={() => setComboPastel1(item.name)}
+                                  className={cn(
+                                    "p-4 rounded-2xl border-2 transition-all text-left text-sm font-bold",
+                                    comboPastel1 === item.name 
+                                      ? "bg-natural-accent border-natural-accent text-white shadow-lg" 
+                                      : "bg-natural-bg border-natural-border text-natural-accent hover:border-natural-accent"
+                                  )}
+                                >
+                                  {item.name}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Pastel 2 */}
+                          <div className="bg-natural-card rounded-[24px] p-8 shadow-natural border border-natural-border/50">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-4 mb-8 border-b border-natural-border/30 pb-4">
+                              <h3 className="font-serif text-2xl text-natural-accent italic">2º Pastel</h3>
+                              <span className="text-[11px] font-bold text-natural-text-muted uppercase tracking-widest">Escolha o segundo sabor (pode ser repetido)</span>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                              {currentMenu.items.filter(i => i.category === 'pastel').map(item => (
+                                <button
+                                  key={`p2-${item.name}`}
+                                  onClick={() => setComboPastel2(item.name)}
+                                  className={cn(
+                                    "p-4 rounded-2xl border-2 transition-all text-left text-sm font-bold",
+                                    comboPastel2 === item.name 
+                                      ? "bg-natural-accent border-natural-accent text-white shadow-lg" 
+                                      : "bg-natural-bg border-natural-border text-natural-accent hover:border-natural-accent"
+                                  )}
+                                >
+                                  {item.name}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Beverage */}
+                          <div className="bg-natural-card rounded-[24px] p-8 shadow-natural border border-natural-border/50">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-4 mb-8 border-b border-natural-border/30 pb-4">
+                              <h3 className="font-serif text-2xl text-natural-accent italic">Bebida do Combo</h3>
+                              <span className="text-[11px] font-bold text-natural-text-muted uppercase tracking-widest">Suco ou Refrigerante</span>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                              {currentMenu.items.filter(i => i.category === 'beverage').map(item => (
+                                <button
+                                  key={`bev-${item.name}`}
+                                  onClick={() => setComboBeverage(item.name)}
+                                  className={cn(
+                                    "p-4 rounded-2xl border-2 transition-all text-left text-sm font-bold",
+                                    comboBeverage === item.name 
+                                      ? "bg-natural-accent border-natural-accent text-white shadow-lg" 
+                                      : "bg-natural-bg border-natural-border text-natural-accent hover:border-natural-accent"
+                                  )}
+                                >
+                                  {item.name}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {orderMode === 'marmitex' && (['protein', 'accompaniment', 'potato', 'garnish', 'extra'] as const).map(cat => {
                         const items = currentMenu.items.filter(i => i.category === cat);
                         if (items.length === 0) return null;
+                        
                         return (
                           <div key={cat} className="bg-natural-card rounded-[24px] p-8 shadow-natural border border-natural-border/50">
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-4 mb-8 border-b border-natural-border/30 pb-4">
@@ -1617,6 +1851,10 @@ function CategoryIcon({ category, className }: { category: string, className?: s
       return <Utensils className={className} />;
     case 'garnish':
       return <Leaf className={className} />;
+    case 'pastel':
+      return <ChefHat className={className} />; // Or an icon for pastel if available
+    case 'beverage':
+      return <ShoppingCart className={className} />; // Or generic drink icon
     default:
       return <ChefHat className={className} />;
   }
@@ -1935,7 +2173,9 @@ function AdminDashboard({
     'accompaniment': 'Acompanhamentos',
     'potato': 'Batatas',
     'garnish': 'Guarnições',
-    'extra': 'Opcionais'
+    'extra': 'Opcionais',
+    'pastel': 'Pastéis',
+    'beverage': 'Bebidas'
   };
 
   const assemblyGroups = Object.entries(
@@ -2000,6 +2240,33 @@ function AdminDashboard({
         await setDoc(menuRef, {
           ...currentMenu,
           status: currentMenu.status === 'open' ? 'closed' : 'open'
+        });
+      }
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, path);
+    }
+  };
+
+  const toggleComboStatus = async () => {
+    const today = format(new Date(), 'yyyy-MM-dd');
+    const menuId = `${today}_${selectedPeriod}`;
+    const path = `menus/${menuId}`;
+    const menuRef = doc(db, 'menus', menuId);
+    
+    try {
+      if (!currentMenu) {
+        await setDoc(menuRef, {
+          id: menuId,
+          date: today,
+          period: selectedPeriod,
+          items: [],
+          status: 'open',
+          isComboEnabled: true
+        });
+      } else {
+        await setDoc(menuRef, {
+          ...currentMenu,
+          isComboEnabled: !currentMenu.isComboEnabled
         });
       }
     } catch (e) {
@@ -2090,7 +2357,8 @@ function AdminDashboard({
           date: today,
           period: selectedPeriod,
           items: updatedItems,
-          status: currentMenu?.status || 'open'
+          status: currentMenu?.status || 'open',
+          isComboEnabled: currentMenu?.isComboEnabled ?? false
         });
 
         // Also save to library
@@ -2183,7 +2451,8 @@ function AdminDashboard({
         date: today,
         period: selectedPeriod,
         items: suggestions,
-        status: 'open'
+        status: 'open',
+        isComboEnabled: false
       });
 
       // Merge into library missing items
@@ -2261,6 +2530,18 @@ function AdminDashboard({
             >
               <FileText className="w-4 h-4" />
               PDF Cozinha
+            </button>
+            <button 
+              onClick={toggleComboStatus}
+              className={cn(
+                "flex items-center gap-2 px-6 py-3 rounded-2xl font-bold transition-all shadow-sm active:scale-95",
+                (!currentMenu || !currentMenu.isComboEnabled)
+                  ? "bg-natural-accent/10 text-natural-accent border border-natural-accent/20 hover:bg-natural-accent hover:text-white"
+                  : "bg-natural-accent text-white border border-natural-accent"
+              )}
+            >
+              <ChefHat className="w-4 h-4" />
+              {(!currentMenu || !currentMenu.isComboEnabled) ? "Ativar Combo Pastel" : "Desativar Combo Pastel"}
             </button>
             <button 
               onClick={toggleMenuStatus}
@@ -2558,6 +2839,8 @@ function AdminDashboard({
                         <option value="potato">Batatas</option>
                         <option value="garnish">Guarnição</option>
                         <option value="extra">Opcional (Sim/Não)</option>
+                        <option value="pastel">Pastel</option>
+                        <option value="beverage">Bebida</option>
                       </select>
                     </div>
                   </div>
@@ -2584,13 +2867,13 @@ function AdminDashboard({
             <div className="space-y-4">
               {isLibraryView ? (
                 <div className="bg-natural-bg border border-natural-border rounded-[32px] p-6 shadow-inner space-y-6">
-                  {['protein', 'accompaniment', 'potato', 'garnish', 'extra'].map(cat => {
+                  {['protein', 'accompaniment', 'potato', 'garnish', 'extra', 'pastel', 'beverage'].map(cat => {
                     const itemsInCat = libraryItems.filter(i => i.category === cat);
                     if (itemsInCat.length === 0) return null;
                     return (
                       <div key={cat} className="space-y-3">
                         <h4 className="text-xs font-bold uppercase tracking-widest text-natural-accent-light mb-4 border-b border-natural-border/50 pb-2">
-                          {cat === 'protein' ? 'Proteínas' : cat === 'accompaniment' ? 'Acompanhamentos' : cat === 'potato' ? 'Batatas' : cat === 'garnish' ? 'Guarnições & Saladas' : 'Opcionais'}
+                          {cat === 'protein' ? 'Proteínas' : cat === 'accompaniment' ? 'Acompanhamentos' : cat === 'potato' ? 'Batatas' : cat === 'garnish' ? 'Guarnições & Saladas' : cat === 'pastel' ? 'Pastéis' : cat === 'beverage' ? 'Bebidas' : 'Opcionais'}
                         </h4>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           {itemsInCat.map(item => {
@@ -2824,7 +3107,7 @@ function AdminDashboard({
                 </div>
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
-                  {['protein', 'accompaniment', 'potato', 'garnish', 'extra'].map(cat => {
+                  {['protein', 'accompaniment', 'potato', 'garnish', 'extra', 'pastel', 'beverage'].map(cat => {
                     const catItems = Object.entries(itemQuantities)
                       .filter(([name]) => itemToCategory[name] === cat)
                       .sort((a, b) => b[1] - a[1]);
