@@ -1787,23 +1787,73 @@ export default function App() {
                     </div>
 
                     <div className="space-y-4">
-                      <label className="text-[11px] font-bold uppercase tracking-[1px] text-white/60 block">Composição da Marmita</label>
-                      {selectedItems.length === 0 ? (
-                        <div className="py-10 px-6 border border-white/10 border-dashed rounded-2xl flex flex-col items-center gap-3 bg-white/5">
-                           <ShoppingCart className="w-6 h-6 text-white/20" />
-                           <p className="text-white/30 text-[10px] uppercase font-bold text-center tracking-widest">Monte sua marmita</p>
-                        </div>
+                      {orderMode === 'combo_pastel' ? (
+                        <>
+                          <label className="text-[11px] font-bold uppercase tracking-[1px] text-white/60 block">Composição do Combo</label>
+                          {(!comboPastel1 && !comboPastel2 && !comboBeverage) ? (
+                            <div className="py-10 px-6 border border-white/10 border-dashed rounded-2xl flex flex-col items-center gap-3 bg-white/5">
+                               <ShoppingCart className="w-6 h-6 text-white/20" />
+                               <p className="text-white/30 text-[10px] uppercase font-bold text-center tracking-widest">Monte seu combo</p>
+                            </div>
+                          ) : (
+                            <ul className="space-y-2">
+                              {comboPastel1 && (
+                                <li className="flex items-center justify-between bg-white/10 px-4 py-3 rounded-xl border border-white/5 backdrop-blur-sm group">
+                                  <div className="flex flex-col">
+                                    <span className="text-[9px] font-bold text-white/50 uppercase tracking-wider">1º Pastel</span>
+                                    <span className="text-sm font-medium text-white/90">{comboPastel1}</span>
+                                  </div>
+                                  <button onClick={() => setComboPastel1('')} className="text-white/40 hover:text-white transition-colors">
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </li>
+                              )}
+                              {comboPastel2 && (
+                                <li className="flex items-center justify-between bg-white/10 px-4 py-3 rounded-xl border border-white/5 backdrop-blur-sm group">
+                                  <div className="flex flex-col">
+                                    <span className="text-[9px] font-bold text-white/50 uppercase tracking-wider">2º Pastel</span>
+                                    <span className="text-sm font-medium text-white/90">{comboPastel2}</span>
+                                  </div>
+                                  <button onClick={() => setComboPastel2('')} className="text-white/40 hover:text-white transition-colors">
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </li>
+                              )}
+                              {comboBeverage && (
+                                <li className="flex items-center justify-between bg-white/10 px-4 py-3 rounded-xl border border-white/5 backdrop-blur-sm group">
+                                  <div className="flex flex-col">
+                                    <span className="text-[9px] font-bold text-white/50 uppercase tracking-wider">Bebida</span>
+                                    <span className="text-sm font-medium text-white/90">{comboBeverage}</span>
+                                  </div>
+                                  <button onClick={() => setComboBeverage('')} className="text-white/40 hover:text-white transition-colors">
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </li>
+                              )}
+                            </ul>
+                          )}
+                        </>
                       ) : (
-                        <ul className="space-y-2">
-                          {selectedItems.map(item => (
-                            <li key={item} className="flex items-center justify-between bg-white/10 px-4 py-3 rounded-xl border border-white/5 backdrop-blur-sm group">
-                              <span className="text-sm font-medium text-white/90">{item}</span>
-                              <button onClick={() => handleToggleItem(item)} className="text-white/40 hover:text-white transition-colors">
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
+                        <>
+                          <label className="text-[11px] font-bold uppercase tracking-[1px] text-white/60 block">Composição da Marmita</label>
+                          {selectedItems.length === 0 ? (
+                            <div className="py-10 px-6 border border-white/10 border-dashed rounded-2xl flex flex-col items-center gap-3 bg-white/5">
+                               <ShoppingCart className="w-6 h-6 text-white/20" />
+                               <p className="text-white/30 text-[10px] uppercase font-bold text-center tracking-widest">Monte sua marmita</p>
+                            </div>
+                          ) : (
+                            <ul className="space-y-2">
+                              {selectedItems.map(item => (
+                                <li key={item} className="flex items-center justify-between bg-white/10 px-4 py-3 rounded-xl border border-white/5 backdrop-blur-sm group">
+                                  <span className="text-sm font-medium text-white/90">{item}</span>
+                                  <button onClick={() => handleToggleItem(item)} className="text-white/40 hover:text-white transition-colors">
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </>
                       )}
                     </div>
 
@@ -1820,11 +1870,25 @@ export default function App() {
 
                     <div className="pt-6 border-t border-white/10">
                       <button 
-                        disabled={!userName.trim() || !selectedSector || selectedItems.length === 0 || orderStatus === 'submitting' || currentMenu?.status === 'closed'}
+                        disabled={
+                          !userName.trim() || 
+                          !selectedSector || 
+                          orderStatus === 'submitting' || 
+                          currentMenu?.status === 'closed' ||
+                          (orderMode === 'combo_pastel' 
+                            ? (!comboPastel1 || !comboPastel2 || !comboBeverage)
+                            : selectedItems.length === 0)
+                        }
                         onClick={handleSubmitOrder}
                         className={cn(
                           "w-full py-5 rounded-2xl font-bold text-lg transition-all flex items-center justify-center gap-3",
-                          !userName.trim() || !selectedSector || selectedItems.length === 0 || orderStatus === 'submitting' || currentMenu?.status === 'closed'
+                          !userName.trim() || 
+                          !selectedSector || 
+                          orderStatus === 'submitting' || 
+                          currentMenu?.status === 'closed' ||
+                          (orderMode === 'combo_pastel' 
+                            ? (!comboPastel1 || !comboPastel2 || !comboBeverage)
+                            : selectedItems.length === 0)
                             ? "bg-white/5 text-white/20 cursor-not-allowed border border-white/10"
                             : "bg-white text-natural-accent hover:shadow-2xl hover:bg-natural-bg active:scale-[0.98]"
                         )}
