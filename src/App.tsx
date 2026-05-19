@@ -978,6 +978,17 @@ export default function App() {
     }
   };
 
+  const [libraryItems, setLibraryItems] = useState<MenuItem[]>([]);
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'menus', 'library'), (docSnap) => {
+      if (docSnap.exists() && docSnap.data().items) {
+        setLibraryItems(docSnap.data().items);
+      }
+    });
+    return () => unsub();
+  }, []);
+
   const exportOrders = (targetDate?: string) => {
     const finalDate = targetDate || format(new Date(), 'yyyy-MM-dd');
     // Apenas pedidos pendentes (ativos) por padrão para a cozinha, da data e período selecionados
@@ -1008,6 +1019,10 @@ export default function App() {
     doc.text(`Total de Pedidos: ${activeOrders.length}`, 14, 35);
     
     const itemCategoryMap: Record<string, string> = {};
+    // Populate with library items for historical data
+    libraryItems.forEach(it => {
+      itemCategoryMap[it.name] = it.category;
+    });
     if (currentMenu) {
       currentMenu.items.forEach(it => {
         itemCategoryMap[it.name] = it.category;
@@ -1804,6 +1819,7 @@ export default function App() {
                   exportOrders={exportOrders} 
                   onDeleteOrder={handleDeleteOrder}
                   currentMenu={currentMenu}
+                  libraryItems={libraryItems}
                   selectedPeriod={selectedPeriod}
                   setSelectedPeriod={setSelectedPeriod}
                   subView={adminSubView}
@@ -2088,6 +2104,7 @@ function AdminDashboard({
   exportOrders, 
   onDeleteOrder,
   currentMenu,
+  libraryItems,
   selectedPeriod,
   setSelectedPeriod,
   subView,
@@ -2100,6 +2117,7 @@ function AdminDashboard({
   exportOrders: (targetDate?: string) => void, 
   onDeleteOrder: (id: string) => void,
   currentMenu: DailyMenu | null,
+  libraryItems: MenuItem[],
   selectedPeriod: Period,
   setSelectedPeriod: (p: Period) => void,
   subView: 'dashboard' | 'orders' | 'menu' | 'history' | 'users' | 'help',
@@ -2116,18 +2134,8 @@ function AdminDashboard({
   const [dateFilter, setDateFilter] = useState(subView === 'history' ? '' : format(new Date(), 'yyyy-MM-dd'));
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [statusFilter, setStatusFilter] = useState<'active' | 'archived' | 'all'>(subView === 'history' ? 'archived' : 'active');
-  const [libraryItems, setLibraryItems] = useState<MenuItem[]>([]);
   const [isLibraryView, setIsLibraryView] = useState(false);
   const [orderViewMode, setOrderViewMode] = useState<'individual' | 'assembly'>('individual');
-
-  useEffect(() => {
-    const unsub = onSnapshot(doc(db, 'menus', 'library'), (docSnap) => {
-      if (docSnap.exists() && docSnap.data().items) {
-        setLibraryItems(docSnap.data().items);
-      }
-    });
-    return () => unsub();
-  }, []);
 
   useEffect(() => {
     setStatusFilter(subView === 'history' ? 'archived' : 'active');
@@ -2157,6 +2165,11 @@ function AdminDashboard({
   });
 
   const itemToCategory: Record<string, string> = {};
+  // First populate with library items to have historical data
+  libraryItems.forEach(it => {
+    itemToCategory[it.name] = it.category;
+  });
+  // Then current menu items to ensure they are up to date (though they should match library)
   currentMenu?.items.forEach(it => {
     itemToCategory[it.name] = it.category;
   });
