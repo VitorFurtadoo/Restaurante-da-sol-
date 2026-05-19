@@ -1186,9 +1186,15 @@ export default function App() {
       { id: 'beverage', label: 'Bebidas' }
     ];
 
+    const printedItems = new Set<string>();
+
     categoriesToPrint.forEach(cat => {
       const catItems = Object.entries(itemQuantities)
-        .filter(([name]) => itemCategoryMap[name] === cat.id)
+        .filter(([name]) => {
+          const isMatch = itemCategoryMap[name.trim().toLowerCase()] === cat.id;
+          if (isMatch) printedItems.add(name);
+          return isMatch;
+        })
         .sort((a, b) => (b[1] as number) - (a[1] as number));
       
       if (catItems.length > 0) {
@@ -1210,6 +1216,30 @@ export default function App() {
         currentYSummary = (doc as any).lastAutoTable.finalY + 8;
       }
     });
+
+    // Handle items without category
+    const otherItems = Object.entries(itemQuantities)
+      .filter(([name]) => !printedItems.has(name))
+      .sort((a, b) => (b[1] as number) - (a[1] as number));
+
+    if (otherItems.length > 0) {
+      if (currentYSummary > 230) {
+         doc.addPage();
+         currentYSummary = 20;
+      }
+
+      autoTable(doc, {
+          startY: currentYSummary,
+          head: [['Outros / Não Categorizados', 'Qtd']],
+          body: otherItems.map(([name, count]) => [name, `${count}x`]),
+          headStyles: { fillColor: [200, 200, 200], textColor: [44, 24, 16], fontStyle: 'bold', fontSize: 14 },
+          styles: { fontSize: 14, cellPadding: 4 },
+          columnStyles: { 0: { cellWidth: 100 }, 1: { cellWidth: 30, fontStyle: 'bold' } },
+          margin: { left: 14 },
+          pageBreak: 'avoid'
+      });
+      currentYSummary = (doc as any).lastAutoTable.finalY + 8;
+    }
 
     if (currentYSummary > 240) {
        doc.addPage();
@@ -3131,7 +3161,7 @@ function AdminDashboard({
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
                   {['protein', 'accompaniment', 'potato', 'garnish', 'extra', 'pastel', 'beverage'].map(cat => {
                     const catItems = Object.entries(itemQuantities)
-                      .filter(([name]) => itemToCategory[name] === cat)
+                      .filter(([name]) => itemToCategory[name.trim().toLowerCase()] === cat)
                       .sort((a, b) => b[1] - a[1]);
                     
                     if (catItems.length === 0) return null;
@@ -3152,6 +3182,38 @@ function AdminDashboard({
                       </div>
                     );
                   })}
+                  
+                  {/* Outros / Não Categorizados */}
+                  {(() => {
+                    const printedItems = new Set<string>();
+                    ['protein', 'accompaniment', 'potato', 'garnish', 'extra', 'pastel', 'beverage'].forEach(cat => {
+                      Object.entries(itemQuantities).forEach(([name]) => {
+                        if (itemToCategory[name.trim().toLowerCase()] === cat) printedItems.add(name);
+                      });
+                    });
+
+                    const otherItems = Object.entries(itemQuantities)
+                      .filter(([name]) => !printedItems.has(name))
+                      .sort((a, b) => b[1] - a[1]);
+
+                    if (otherItems.length === 0) return null;
+
+                    return (
+                      <div className="space-y-3">
+                        <p className="text-[10px] font-bold uppercase tracking-[2px] text-natural-text-muted border-b border-natural-border pb-2">
+                          Outros
+                        </p>
+                        <div className="space-y-2">
+                          {otherItems.map(([name, count]) => (
+                            <div key={name} className="flex items-center justify-between gap-2 bg-white p-3 rounded-xl border border-natural-border shadow-sm">
+                              <span className="text-xs font-bold text-natural-text truncate max-w-[120px]" title={name}>{name}</span>
+                              <span className="bg-natural-accent text-white text-[10px] font-bold px-2 py-1 rounded-lg shrink-0">{count}x</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             )}
