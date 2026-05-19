@@ -1021,11 +1021,11 @@ export default function App() {
     const itemCategoryMap: Record<string, string> = {};
     // Populate with library items for historical data
     libraryItems.forEach(it => {
-      itemCategoryMap[it.name] = it.category;
+      itemCategoryMap[it.name.trim().toLowerCase()] = it.category;
     });
     if (currentMenu) {
       currentMenu.items.forEach(it => {
-        itemCategoryMap[it.name] = it.category;
+        itemCategoryMap[it.name.trim().toLowerCase()] = it.category;
       });
     }
 
@@ -1034,10 +1034,13 @@ export default function App() {
       'accompaniment': 1,
       'potato': 2,
       'garnish': 3,
-      'extra': 4
+      'extra': 4,
+      'pastel': 5,
+      'beverage': 6
     };
 
-    const getCategoryLabel = (cat: string) => {
+    const getCategoryLabel = (cat: string | undefined) => {
+      if (!cat) return '[?]';
       switch (cat) {
         case 'protein': return '[P]';
         case 'accompaniment': return '[A]';
@@ -1055,7 +1058,7 @@ export default function App() {
         // Filtrar itens para a assinatura (Acompanhamento + Batatas)
         const signatureItems = order.items
           .filter(name => {
-            const cat = itemCategoryMap[name];
+            const cat = itemCategoryMap[name.trim().toLowerCase()];
             return cat === 'accompaniment' || cat === 'potato';
           })
           .sort();
@@ -1093,21 +1096,27 @@ export default function App() {
         .sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0))
         .map(order => {
           const topItems = order.items.filter(name => {
-             const cat = itemCategoryMap[name];
+             const lowerName = name.trim().toLowerCase();
+             const cat = itemCategoryMap[lowerName];
              // Filtrar Farofa apenas do PDF de montagem individual
-             if (name.toLowerCase() === 'farofa') return false;
-             return cat === 'protein' || cat === 'garnish' || cat === 'extra';
+             if (lowerName === 'farofa') return false;
+             
+             // If we don't know the category, INCLUDE it here so it's not lost
+             if (!cat) return true;
+
+             return cat === 'protein' || cat === 'garnish' || cat === 'extra' || cat === 'pastel' || cat === 'beverage';
           });
 
           // sort top items by category
           topItems.sort((a, b) => {
-            const catA = itemCategoryMap[a] || 'other';
-            const catB = itemCategoryMap[b] || 'other';
+            const catA = itemCategoryMap[a.trim().toLowerCase()] || 'other';
+            const catB = itemCategoryMap[b.trim().toLowerCase()] || 'other';
             return (categoryOrder[catA] ?? 99) - (categoryOrder[catB] ?? 99);
           });
           
           const itemsStr = topItems.map(it => {
-              const label = getCategoryLabel(itemCategoryMap[it]);
+              const cat = itemCategoryMap[it.trim().toLowerCase()];
+              const label = getCategoryLabel(cat);
               return label ? `${it} ${label}` : it;
           }).join(', ');
           
@@ -2167,11 +2176,11 @@ function AdminDashboard({
   const itemToCategory: Record<string, string> = {};
   // First populate with library items to have historical data
   libraryItems.forEach(it => {
-    itemToCategory[it.name] = it.category;
+    itemToCategory[it.name.trim().toLowerCase()] = it.category;
   });
   // Then current menu items to ensure they are up to date (though they should match library)
   currentMenu?.items.forEach(it => {
-    itemToCategory[it.name] = it.category;
+    itemToCategory[it.name.trim().toLowerCase()] = it.category;
   });
 
   const itemQuantities = filteredOrders.reduce((acc, order) => {
@@ -2196,7 +2205,7 @@ function AdminDashboard({
       // Filtrar itens para a assinatura (Acompanhamento + Batatas)
       const signatureItems = order.items
         .filter(name => {
-          const cat = itemToCategory[name];
+          const cat = itemToCategory[name.trim().toLowerCase()];
           return cat === 'accompaniment' || cat === 'potato';
         })
         .sort();
@@ -3191,9 +3200,12 @@ function AdminDashboard({
                               <div className="flex flex-wrap gap-1 mt-2">
                                 {o.items
                                   .filter(name => {
-                                    const cat = itemToCategory[name];
-                                    if (name.toLowerCase() === 'farofa') return false;
-                                    return cat === 'protein' || cat === 'garnish' || cat === 'extra';
+                                    const lowerName = name.trim().toLowerCase();
+                                    const cat = itemToCategory[lowerName];
+                                    if (lowerName === 'farofa') return false;
+                                    // Robust check: if no category, keep it here so it's not lost
+                                    if (!cat) return true;
+                                    return cat === 'protein' || cat === 'garnish' || cat === 'extra' || cat === 'pastel' || cat === 'beverage';
                                   })
                                   .map(it => (
                                     <span key={it} className="text-[8px] bg-natural-accent/10 text-natural-accent px-1.5 py-0.5 rounded-md font-bold uppercase">{it}</span>
