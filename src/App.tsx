@@ -771,7 +771,7 @@ export default function App() {
       const q = query(
         ordersRef,
         orderBy('timestamp', 'desc'),
-        limit(300)
+        limit(10000)
       );
 
       return onSnapshot(q, (snapshot) => {
@@ -2234,7 +2234,8 @@ function AdminDashboard({
   const [editingLibraryItemId, setEditingLibraryItemId] = useState<string | null>(null);
   const [sectorFilter, setSectorFilter] = useState<string>('all');
   const [nameFilter, setNameFilter] = useState('');
-  const [dateFilter, setDateFilter] = useState(subView === 'history' ? '' : format(new Date(), 'yyyy-MM-dd'));
+  const [startDateFilter, setStartDateFilter] = useState(subView === 'history' ? '' : format(new Date(), 'yyyy-MM-dd'));
+  const [endDateFilter, setEndDateFilter] = useState(subView === 'history' ? '' : format(new Date(), 'yyyy-MM-dd'));
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [statusFilter, setStatusFilter] = useState<'active' | 'archived' | 'all'>(subView === 'history' ? 'archived' : 'active');
   const [isLibraryView, setIsLibraryView] = useState(false);
@@ -2242,8 +2243,12 @@ function AdminDashboard({
 
   useEffect(() => {
     setStatusFilter(subView === 'history' ? 'archived' : 'active');
-    if (subView === 'orders' && !dateFilter) {
-      setDateFilter(format(new Date(), 'yyyy-MM-dd'));
+    if (subView === 'orders') {
+      if (!startDateFilter) setStartDateFilter(format(new Date(), 'yyyy-MM-dd'));
+      if (!endDateFilter) setEndDateFilter(format(new Date(), 'yyyy-MM-dd'));
+    } else if (subView === 'history') {
+      setStartDateFilter('');
+      setEndDateFilter('');
     }
   }, [subView]);
 
@@ -2261,7 +2266,9 @@ function AdminDashboard({
       : statusFilter === 'active' 
         ? (o.status === 'active' || !o.status) 
         : o.status === 'archived';
-    const matchesDate = !dateFilter || o.date === dateFilter;
+    const matchesDate = 
+      (!startDateFilter || o.date >= startDateFilter) &&
+      (!endDateFilter || o.date <= endDateFilter);
     const matchesName = !nameFilter || o.userName?.toLowerCase().includes(nameFilter.toLowerCase());
     const matchesPeriod = o.period === selectedPeriod;
     return matchesSector && matchesStatus && matchesDate && matchesName && matchesPeriod;
@@ -2391,7 +2398,7 @@ function AdminDashboard({
   };
 
   const clearMenu = async () => {
-    const targetDate = dateFilter || format(new Date(), 'yyyy-MM-dd');
+    const targetDate = startDateFilter || format(new Date(), 'yyyy-MM-dd');
     const menuId = `${targetDate}_${selectedPeriod}`;
     const path = `menus/${menuId}`;
     const menuRef = doc(db, 'menus', menuId);
@@ -2641,7 +2648,7 @@ function AdminDashboard({
 
           <div className="flex gap-3 w-full sm:w-auto overflow-x-auto whitespace-nowrap scrollbar-hide pb-2 sm:pb-0">
             <button 
-              onClick={() => exportOrders(dateFilter)}
+              onClick={() => exportOrders(startDateFilter)}
               className="flex items-center gap-2 bg-natural-card border border-natural-border text-natural-text px-6 py-3 rounded-2xl font-bold hover:bg-natural-accent hover:text-white transition-all shadow-sm active:scale-95"
             >
               <FileText className="w-4 h-4" />
@@ -3133,7 +3140,7 @@ function AdminDashboard({
                 <div className="flex items-center gap-2 flex-wrap">
                   {subView === 'history' && (
                     <button 
-                      onClick={() => { setDateFilter(''); setNameFilter(''); setSectorFilter('all'); }}
+                      onClick={() => { setStartDateFilter(''); setEndDateFilter(''); setNameFilter(''); setSectorFilter('all'); }}
                       className="text-[10px] font-bold uppercase text-natural-accent hover:text-natural-text transition-colors tracking-widest bg-natural-bg/50 px-4 py-2 rounded-full border border-natural-border"
                     >
                       Limpar Filtros
@@ -3164,7 +3171,7 @@ function AdminDashboard({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 border-t border-natural-border/30 pt-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 border-t border-natural-border/30 pt-6">
                 <div className="space-y-2">
                   <label className="text-[10px] font-bold uppercase text-natural-text-muted tracking-widest ml-1">Buscar por Nome</label>
                   <input 
@@ -3190,11 +3197,21 @@ function AdminDashboard({
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-[10px] font-bold uppercase text-natural-text-muted tracking-widest ml-1">Filtrar por Data</label>
+                  <label className="text-[10px] font-bold uppercase text-natural-text-muted tracking-widest ml-1">Data Inicial (De)</label>
                   <input 
                     type="date"
-                    value={dateFilter}
-                    onChange={(e) => setDateFilter(e.target.value)}
+                    value={startDateFilter}
+                    onChange={(e) => setStartDateFilter(e.target.value)}
+                    className="w-full bg-natural-bg border border-natural-border rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-natural-accent-light transition-all text-natural-text appearance-none"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold uppercase text-natural-text-muted tracking-widest ml-1">Data Final (Até)</label>
+                  <input 
+                    type="date"
+                    value={endDateFilter}
+                    onChange={(e) => setEndDateFilter(e.target.value)}
                     className="w-full bg-natural-bg border border-natural-border rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-natural-accent-light transition-all text-natural-text appearance-none"
                   />
                 </div>
