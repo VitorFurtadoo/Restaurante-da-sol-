@@ -35,7 +35,8 @@
         "period": { "type": "string", "enum": ["lunch", "dinner"] },
         "date": { "type": "string", "format": "date" },
         "timestamp": { "type": "string", "format": "date-time" },
-        "observation": { "type": "string" }
+        "observation": { "type": "string" },
+        "deliveryType": { "type": "string", "enum": ["entrega", "retirada"] }
       },
       "required": ["sector", "items", "period", "date", "timestamp"]
     },

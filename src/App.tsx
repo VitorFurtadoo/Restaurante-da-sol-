@@ -66,7 +66,9 @@ import {
   PieChart as PieChartIcon,
   Search,
   Edit2,
-  X
+  X,
+  Truck,
+  Store
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
@@ -628,6 +630,7 @@ export default function App() {
   const [comboPastel2, setComboPastel2] = useState<string>('');
   const [comboBeverage, setComboBeverage] = useState<string>('');
   const [userName, setUserName] = useState('');
+  const [deliveryType, setDeliveryType] = useState<'entrega' | 'retirada' | ''>('');
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [notification, setNotification] = useState<string | null>(null);
   const [lastOrderCount, setLastOrderCount] = useState<number | null>(null);
@@ -926,6 +929,12 @@ export default function App() {
       return;
     }
 
+    // Require delivery or pickup for dinner orders
+    if (selectedPeriod === 'dinner' && !deliveryType) {
+      setNotification("Por favor, selecione se deseja Entrega ou Retirada no restaurante.");
+      return;
+    }
+
     // Check for duplicate names in the same period/day
     const today = format(new Date(), 'yyyy-MM-dd');
     const hasDuplicate = allOrders.some(o => 
@@ -951,7 +960,8 @@ export default function App() {
         observation: orderObservation,
         date: today,
         timestamp: serverTimestamp(),
-        status: 'active'
+        status: 'active',
+        deliveryType: selectedPeriod === 'dinner' ? deliveryType : null
       });
       setOrderStatus('success');
       setNotification(`Pedido de ${trimmedName} enviado com sucesso! Bom apetite!`);
@@ -961,6 +971,7 @@ export default function App() {
       setComboBeverage('');
       setOrderObservation('');
       setUserName('');
+      setDeliveryType('');
       setOrderMode(null);
       setTimeout(() => setOrderStatus('idle'), 3000);
     } catch (e) {
@@ -1122,7 +1133,9 @@ export default function App() {
           
           return [
             order.userName || '-',
-            order.sector,
+            order.period === 'dinner' && order.deliveryType
+              ? `${order.sector} (${order.deliveryType === 'entrega' ? 'Entrega' : 'Retirada'})`
+              : order.sector,
             order.timestamp ? format(order.timestamp.toDate(), 'HH:mm') : '--:--',
             itemsStr,
             order.observation || '-'
@@ -1670,11 +1683,12 @@ export default function App() {
                                 </div>
                               </div>
                               <button 
-                                onClick={() => {
+                               onClick={() => {
                                   setSelectedItems(order.items);
                                   setSelectedSector(order.sector);
                                   setUserName(order.userName);
                                   setOrderObservation(order.observation || '');
+                                  setDeliveryType(order.deliveryType || '');
                                   setUserSubView('order');
                                   setNotification("Pedido carregado! Revise e clique em Confirmar.");
                                 }}
@@ -1857,6 +1871,45 @@ export default function App() {
                       )}
                     </div>
 
+                    {selectedPeriod === 'dinner' && (
+                      <div className="space-y-4">
+                        <label className="text-[11px] font-bold uppercase tracking-[1px] text-white/60 block">
+                          Forma de Recebimento <span className="text-amber-300 font-bold">*</span>
+                        </label>
+                        <div className="grid grid-cols-2 gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setDeliveryType('entrega')}
+                            className={cn(
+                              "flex flex-col items-center justify-center p-4 rounded-xl border transition-all gap-1.5 focus:outline-none cursor-pointer",
+                              deliveryType === 'entrega'
+                                ? "bg-white text-natural-accent border-white shadow-lg font-bold scale-[1.02]"
+                                : "bg-white/5 text-white/75 border-white/10 hover:bg-white/10"
+                            )}
+                          >
+                            <Truck className={cn("w-5 h-5", deliveryType === 'entrega' ? "text-natural-accent" : "text-white/60")} />
+                            <span className="text-xs uppercase tracking-wider font-bold">Entrega</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeliveryType('retirada')}
+                            className={cn(
+                              "flex flex-col items-center justify-center p-4 rounded-xl border transition-all gap-1.5 focus:outline-none cursor-pointer",
+                              deliveryType === 'retirada'
+                                ? "bg-white text-natural-accent border-white shadow-lg font-bold scale-[1.02]"
+                                : "bg-white/5 text-white/75 border-white/10 hover:bg-white/10"
+                            )}
+                          >
+                            <Store className={cn("w-5 h-5", deliveryType === 'retirada' ? "text-natural-accent" : "text-white/60")} />
+                            <span className="text-xs uppercase tracking-wider font-bold">Retirada</span>
+                          </button>
+                        </div>
+                        <p className="text-[10px] text-white/50 italic">
+                          * Seleção obrigatória para pedidos do jantar.
+                        </p>
+                      </div>
+                    )}
+
                     <div className="space-y-4">
                       <label className="text-[11px] font-bold uppercase tracking-[1px] text-white/60 block">Observações (Opcional)</label>
                       <textarea 
@@ -1875,6 +1928,7 @@ export default function App() {
                           !selectedSector || 
                           orderStatus === 'submitting' || 
                           currentMenu?.status === 'closed' ||
+                          (selectedPeriod === 'dinner' && !deliveryType) ||
                           (orderMode === 'combo_pastel' 
                             ? (!comboPastel1 || !comboPastel2 || !comboBeverage)
                             : selectedItems.length === 0)
@@ -1882,13 +1936,14 @@ export default function App() {
                         onClick={handleSubmitOrder}
                         className={cn(
                           "w-full py-5 rounded-2xl font-bold text-lg transition-all flex items-center justify-center gap-3",
-                          !userName.trim() || 
+                          (!userName.trim() || 
                           !selectedSector || 
                           orderStatus === 'submitting' || 
                           currentMenu?.status === 'closed' ||
+                          (selectedPeriod === 'dinner' && !deliveryType) ||
                           (orderMode === 'combo_pastel' 
                             ? (!comboPastel1 || !comboPastel2 || !comboBeverage)
-                            : selectedItems.length === 0)
+                            : selectedItems.length === 0))
                             ? "bg-white/5 text-white/20 cursor-not-allowed border border-white/10"
                             : "bg-white text-natural-accent hover:shadow-2xl hover:bg-natural-bg active:scale-[0.98]"
                         )}
@@ -2299,6 +2354,216 @@ function AdminDashboard({
     'extra': 'Opcionais',
     'pastel': 'Pastéis',
     'beverage': 'Bebidas'
+  };
+
+  const exportFilteredReport = () => {
+    if (filteredOrders.length === 0) {
+      alert("Não há pedidos para exportar com os filtros atuais.");
+      return;
+    }
+
+    const doc = new jsPDF();
+    const startDateStr = startDateFilter ? startDateFilter.split('-').reverse().join('/') : 'Início';
+    const endDateStr = endDateFilter ? endDateFilter.split('-').reverse().join('/') : 'Fim';
+    const periodStr = selectedPeriod === 'lunch' ? 'ALMOÇO' : 'JANTAR';
+
+    // Header
+    doc.setFontSize(22);
+    doc.setTextColor(44, 24, 16);
+    doc.text('Relatório de Pedidos Filtrado', 14, 22);
+
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`Período dos Filtros: ${startDateStr} até ${endDateStr} | Turno: ${periodStr}`, 14, 30);
+    doc.text(`Setor: ${sectorFilter === 'all' ? 'Todos' : sectorFilter} | Status: ${statusFilter === 'all' ? 'Todos' : (statusFilter === 'active' ? 'Ativos' : 'Arquivados')}`, 14, 35);
+    doc.text(`Total de Pedidos Encontrados: ${filteredOrders.length}`, 14, 40);
+
+    const categoryOrder: Record<string, number> = {
+      'protein': 0,
+      'accompaniment': 1,
+      'potato': 2,
+      'garnish': 3,
+      'extra': 4,
+      'pastel': 5,
+      'beverage': 6
+    };
+
+    const getCategoryLabel = (cat: string | undefined) => {
+      if (!cat) return '[?]';
+      switch (cat) {
+        case 'protein': return '[P]';
+        case 'accompaniment': return '[A]';
+        case 'potato': return '[B]';
+        case 'garnish': return '[G]';
+        case 'extra': return '[#]';
+        case 'pastel': return '[P]';
+        case 'beverage': return '[D]';
+        default: return '';
+      }
+    };
+
+    const tableData = filteredOrders
+      .sort((a, b) => {
+        const dateCompare = b.date.localeCompare(a.date);
+        if (dateCompare !== 0) return dateCompare;
+        return (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0);
+      })
+      .map(order => {
+        const topItems = order.items.filter(name => {
+           const lowerName = name.trim().toLowerCase();
+           const cat = itemToCategory[lowerName];
+           if (lowerName === 'farofa') return false;
+           if (!cat) return true;
+           return cat === 'protein' || cat === 'garnish' || cat === 'extra' || cat === 'pastel' || cat === 'beverage' || cat === 'accompaniment' || cat === 'potato';
+        });
+
+        topItems.sort((a, b) => {
+          const catA = itemToCategory[a.trim().toLowerCase()] || 'other';
+          const catB = itemToCategory[b.trim().toLowerCase()] || 'other';
+          return (categoryOrder[catA] ?? 99) - (categoryOrder[catB] ?? 99);
+        });
+        
+        const itemsStr = topItems.map(it => {
+            const cat = itemToCategory[it.trim().toLowerCase()];
+            const label = getCategoryLabel(cat);
+            return label ? `${it} ${label}` : it;
+        }).join(', ');
+
+        const orderDateStr = order.date.split('-').reverse().join('/');
+        
+        let timeStr = '--:--';
+        if (order.timestamp) {
+          try {
+            if (typeof order.timestamp.toDate === 'function') {
+              timeStr = format(order.timestamp.toDate(), 'HH:mm');
+            } else if (order.timestamp instanceof Date) {
+              timeStr = format(order.timestamp, 'HH:mm');
+            } else if (typeof order.timestamp === 'string') {
+              timeStr = format(new Date(order.timestamp), 'HH:mm');
+            }
+          } catch (e) {
+            console.error(e);
+          }
+        }
+
+        return [
+          orderDateStr,
+          order.userName || '-',
+          order.period === 'dinner' && order.deliveryType
+            ? `${order.sector} (${order.deliveryType === 'entrega' ? 'Entrega' : 'Retirada'})`
+            : order.sector,
+          timeStr,
+          itemsStr,
+          order.observation || '-'
+        ];
+      });
+
+    autoTable(doc, {
+      startY: 48,
+      head: [['Data', 'Nome', 'Setor', 'H.', 'Itens do Pedido', 'Obs.']],
+      body: tableData,
+      headStyles: { 
+        fillColor: [44, 24, 16], 
+        textColor: [255, 255, 255],
+        fontSize: 10,
+        fontStyle: 'bold'
+      },
+      alternateRowStyles: { fillColor: [250, 248, 246] },
+      styles: { 
+        fontSize: 10, 
+        cellPadding: 4,
+        valign: 'middle',
+        overflow: 'linebreak'
+      },
+      columnStyles: {
+        0: { cellWidth: 20 },
+        1: { cellWidth: 30 },
+        2: { cellWidth: 25 },
+        3: { cellWidth: 15 },
+        4: { cellWidth: 'auto', fontStyle: 'bold' },
+        5: { cellWidth: 25 }
+      }
+    });
+
+    let currentYSummary = (doc as any).lastAutoTable.finalY + 12;
+
+    if (currentYSummary > 200) {
+      doc.addPage();
+      currentYSummary = 20;
+    }
+
+    doc.setFontSize(16);
+    doc.setTextColor(44, 24, 16);
+    doc.setFont("helvetica", "bold");
+    doc.text('Resumo Acumulado do Período', 14, currentYSummary);
+    currentYSummary += 10;
+
+    const categoriesToPrint = [
+      { id: 'protein', label: 'Proteínas' },
+      { id: 'accompaniment', label: 'Acompanhamentos' },
+      { id: 'potato', label: 'Batatas' },
+      { id: 'garnish', label: 'Guarnições' },
+      { id: 'extra', label: 'Opcionais' },
+      { id: 'pastel', label: 'Pastéis' },
+      { id: 'beverage', label: 'Bebidas' }
+    ];
+
+    const printedItems = new Set<string>();
+
+    categoriesToPrint.forEach(cat => {
+      const catItems = Object.entries(itemQuantities)
+        .filter(([name]) => {
+          const isMatch = itemToCategory[name.trim().toLowerCase()] === cat.id;
+          if (isMatch) printedItems.add(name);
+          return isMatch;
+        })
+        .sort((a, b) => (b[1] as number) - (a[1] as number));
+      
+      if (catItems.length > 0) {
+        if (currentYSummary > 230) {
+           doc.addPage();
+           currentYSummary = 20;
+        }
+
+        autoTable(doc, {
+            startY: currentYSummary,
+            head: [[cat.label, 'Qtd']],
+            body: catItems.map(([name, count]) => [name, `${count}x`]),
+            headStyles: { fillColor: [240, 240, 240], textColor: [44, 24, 16], fontStyle: 'bold', fontSize: 11 },
+            styles: { fontSize: 11, cellPadding: 3 },
+            columnStyles: { 0: { cellWidth: 100 }, 1: { cellWidth: 30, fontStyle: 'bold' } },
+            margin: { left: 14 },
+            pageBreak: 'avoid'
+        });
+        currentYSummary = (doc as any).lastAutoTable.finalY + 6;
+      }
+    });
+
+    // Handle items without category
+    const otherItems = Object.entries(itemQuantities)
+      .filter(([name]) => !printedItems.has(name))
+      .sort((a, b) => (b[1] as number) - (a[1] as number));
+
+    if (otherItems.length > 0) {
+      if (currentYSummary > 230) {
+         doc.addPage();
+         currentYSummary = 20;
+      }
+
+      autoTable(doc, {
+          startY: currentYSummary,
+          head: [['Outros / Não Categorizados', 'Qtd']],
+          body: otherItems.map(([name, count]) => [name, `${count}x`]),
+          headStyles: { fillColor: [200, 200, 200], textColor: [44, 24, 16], fontStyle: 'bold', fontSize: 11 },
+          styles: { fontSize: 11, cellPadding: 3 },
+          columnStyles: { 0: { cellWidth: 100 }, 1: { cellWidth: 30, fontStyle: 'bold' } },
+          margin: { left: 14 },
+          pageBreak: 'avoid'
+      });
+      currentYSummary = (doc as any).lastAutoTable.finalY + 6;
+    }
+
+    doc.save(`relatorio_copilado_pedidos_${startDateStr.replace(/\//g, '-')}_a_${endDateStr.replace(/\//g, '-')}.pdf`);
   };
 
   const assemblyGroups = Object.entries(
@@ -3138,6 +3403,15 @@ function AdminDashboard({
                 </h3>
                 
                 <div className="flex items-center gap-2 flex-wrap">
+                  {filteredOrders.length > 0 && (
+                    <button 
+                      onClick={exportFilteredReport}
+                      className="text-[10px] font-bold uppercase text-white bg-natural-accent hover:bg-natural-accent-light transition-all tracking-widest px-4 py-2 rounded-full border border-natural-accent flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      Exportar Relatório ({filteredOrders.length})
+                    </button>
+                  )}
                   {subView === 'history' && (
                     <button 
                       onClick={() => { setStartDateFilter(''); setEndDateFilter(''); setNameFilter(''); setSectorFilter('all'); }}
@@ -3339,6 +3613,16 @@ function AdminDashboard({
                               )}
                               <span className="text-xs font-bold text-natural-text italic serif pr-4">{o.userName}</span>
                               <span className="text-[9px] uppercase tracking-widest text-natural-text-muted">{o.sector}</span>
+                              {o.period === 'dinner' && (
+                                <span className={cn(
+                                  "text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 mt-1 rounded text-center self-start",
+                                  o.deliveryType === 'entrega' 
+                                    ? "bg-amber-100 text-amber-800 border border-amber-200" 
+                                    : "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                                )}>
+                                  {o.deliveryType === 'entrega' ? '🚚 Entrega' : '🥡 Retirada'}
+                                </span>
+                              )}
                               
                               <div className="flex flex-wrap gap-1 mt-2">
                                 {o.items
@@ -3370,8 +3654,18 @@ function AdminDashboard({
                     <div key={order.id} className="bg-natural-card p-8 rounded-[32px] border border-natural-border/50 shadow-sm hover:shadow-md transition-all space-y-4 border-l-4 border-l-natural-accent">
                       <div className="flex justify-between items-start">
                         <div>
-                          <div className="flex items-center gap-2 mb-3">
+                          <div className="flex items-center gap-2 mb-3 flex-wrap">
                             <span className="text-[10px] font-bold uppercase text-natural-accent bg-natural-bg border border-natural-border px-3 py-1.5 rounded-full inline-block tracking-widest">Setor {order.sector}</span>
+                            {order.period === 'dinner' && (
+                              <span className={cn(
+                                "text-[10px] font-bold uppercase px-3 py-1.5 rounded-full inline-block tracking-widest border",
+                                order.deliveryType === 'entrega' 
+                                  ? "bg-amber-100 text-amber-800 border-amber-200" 
+                                  : "bg-emerald-100 text-emerald-800 border-emerald-200"
+                              )}>
+                                {order.deliveryType === 'entrega' ? '🚚 Entrega' : '🥡 Retirada'}
+                              </span>
+                            )}
                             <span className="text-sm font-bold text-natural-accent font-serif italic">{order.userName || 'Sem nome'}</span>
                           </div>
                           <p className="text-sm text-natural-text font-medium italic serif">Pedido {order.date === format(new Date(), 'yyyy-MM-dd') ? 'às' : `em ${format(new Date(order.date + 'T12:00:00'), 'dd/MM')} às`} {order.timestamp ? format(order.timestamp.toDate(), 'HH:mm') : '--:--'}</p>

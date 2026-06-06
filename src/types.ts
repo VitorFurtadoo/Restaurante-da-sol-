@@ -29,6 +29,7 @@ export interface Order {
   timestamp: any;
   observation?: string;
   status?: 'active' | 'archived';
+  deliveryType?: 'entrega' | 'retirada';
 }
 
 export interface UserProfile {
